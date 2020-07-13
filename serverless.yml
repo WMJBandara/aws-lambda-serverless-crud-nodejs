@@ -1,0 +1,174 @@
+service: e-commerce
+
+custom:
+  settings:
+    ECOMMERCE_TABLE: Orders
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: ap-northeast-1
+  environment: ${self:custom.settings}
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+      - dynamodb:DescribeTable
+      - dynamodb:PutItem
+      - dynamodb:GetItem
+      - dynamodb:Scan
+      - dynamodb:DeleteItem
+      - dynamodb:UpdateItem
+      - dynamodb:ConditionCheckItem
+      Resource: 
+      - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.settings.ECOMMERCE_TABLE}"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+      Resource: 
+      - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.settings.ECOMMERCE_TABLE}/index/*"
+
+functions:
+  createOrder:
+    handler: handler.createOrder
+    events:
+      - http:
+          path: /orders
+          method: post
+
+  getOrders:
+    handler: handler.getOrders
+    events:
+      - http:
+          path: /orders/get-all
+          method: get
+
+  getOrderByOrderNo:
+    handler: handler.getOrderByOrderNo
+    events:
+      - http:
+          path: /orders/ordernumber/{orderno}
+          method: get  
+  
+  filterOrdersByUserName:
+    handler : handler.getOrdersByUserName
+    events:
+      - http:
+          path: /orders/username/{username}
+          method: get
+
+  filterOrdersByCreatAtDate:
+    handler : handler.filterOrdersByCreatAtDate
+    events : 
+      - http:
+          path: /orders/createdate/{createddate}
+          method: get
+  
+  updateItem:
+    handler : handler.updateItem
+    events : 
+      - http:
+          path: /orders/update/{orderno}
+          method: put
+
+  deleteItem:
+    handler : handler.deleteItem
+    events : 
+      - http : 
+          path : /orders/delete/{username}
+          method : delete
+
+  selectOrdersWithinAMonthByGivenDate:
+    handler : handler.selectOrdersWithinAMonthByGivenDate
+    events:
+      - http:
+          path : /orders/search
+          method: post
+
+resources:
+  Resources:
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName : "UserName"
+          AttributeType : "S"
+        - AttributeName : "OrderNo"
+          AttributeType : "S"
+        - AttributeName : "CreateAt"
+          AttributeType : "S"
+        KeySchema:
+        - AttributeName : "UserName"
+          KeyType : "HASH"
+        - AttributeName : "OrderNo"
+          KeyType : "RANGE"
+        ProvisionedThroughput:
+          WriteCapacityUnits : 1
+          ReadCapacityUnits : 1
+        TableName: ${self:custom.settings.ECOMMERCE_TABLE}
+
+        GlobalSecondaryIndexes:
+          - IndexName : "OrderNo_Index"
+            KeySchema:
+            - AttributeName: "OrderNo"
+              KeyType: "HASH"
+            Projection:
+              NonKeyAttributes:
+                - "UserName"
+                - "OrderNo"
+                - "Email"
+                - "CreateAt"
+                - "Address"
+              ProjectionType: "INCLUDE"
+            ProvisionedThroughput:
+              WriteCapacityUnits : 5
+              ReadCapacityUnits: 5
+              
+          - IndexName: "UserName_Index"
+            KeySchema:
+            - AttributeName: "UserName"
+              KeyType: "HASH"
+            Projection:
+              NonKeyAttributes:
+              - "UserName"
+              - "OrderNo"
+              - "Email"
+              - "CreateAt"
+              - "Address"
+              ProjectionType: "INCLUDE"          
+            ProvisionedThroughput:
+              WriteCapacityUnits : 5
+              ReadCapacityUnits: 5
+              
+          - IndexName: "CreateAt_Index"
+            KeySchema:
+            - AttributeName: "CreateAt"
+              KeyType: "HASH"
+            Projection:
+              NonKeyAttributes:
+                - "UserName"
+                - "OrderNo"
+                - "Email"
+                - "CreateAt"
+                - "Address"
+              ProjectionType: "INCLUDE"
+            ProvisionedThroughput:
+              WriteCapacityUnits: 5
+              ReadCapacityUnits: 5
+
+        LocalSecondaryIndexes:
+          - IndexName: "CreateAtLocal_Index"
+            KeySchema:
+              - AttributeName : "UserName"
+                KeyType : "HASH"
+              - AttributeName : "CreateAt"
+                KeyType : "RANGE"
+            Projection:
+              NonKeyAttributes:
+                - "OrderNo"
+                - "UserName"
+                - "Address"
+                - "Email"
+              ProjectionType: "INCLUDE"
+
+
+
